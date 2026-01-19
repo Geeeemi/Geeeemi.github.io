@@ -1,0 +1,447 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>基于Ingress实现k8s七层调度和负载均衡 | Geeeemi's Blog</title><meta name="author" content="Geeeemi"><meta name="copyright" content="Geeeemi"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="介绍Ingress实现k8s七层调度和负载均衡">
+<meta property="og:type" content="article">
+<meta property="og:title" content="基于Ingress实现k8s七层调度和负载均衡">
+<meta property="og:url" content="https://geeeemi.github.io/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/index.html">
+<meta property="og:site_name" content="Geeeemi&#39;s Blog">
+<meta property="og:description" content="介绍Ingress实现k8s七层调度和负载均衡">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://geeeemi.github.io/img/cover/15.png">
+<meta property="article:published_time" content="2026-03-07T15:18:00.000Z">
+<meta property="article:modified_time" content="2026-03-07T15:18:00.000Z">
+<meta property="article:author" content="Geeeemi">
+<meta property="article:tag" content="Ingress">
+<meta property="article:tag" content="负载均衡">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://geeeemi.github.io/img/cover/15.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "基于Ingress实现k8s七层调度和负载均衡",
+  "url": "https://geeeemi.github.io/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/",
+  "image": "https://geeeemi.github.io/img/cover/15.png",
+  "datePublished": "2026-03-07T15:18:00.000Z",
+  "dateModified": "2026-03-07T15:18:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "Geeeemi",
+      "url": "https://geeeemi.github.io"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/img/favicon.png"><link rel="canonical" href="https://geeeemi.github.io/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="preconnect" href="//busuanzi.ibruce.info"/><link rel="stylesheet" href="/css/index.css?v=5.5.3"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.1.0/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        if (!ttl) return
+        const expiry = Date.now() + ttl * 86400000
+        localStorage.setItem(key, JSON.stringify({ value, expiry }))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return undefined
+        const { value, expiry } = JSON.parse(itemStr)
+        if (Date.now() > expiry) {
+          localStorage.removeItem(key)
+          return undefined
+        }
+        return value
+      }
+    }
+
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = url
+        script.async = true
+        Object.entries(attr).forEach(([key, val]) => script.setAttribute(key, val))
+        script.onload = script.onreadystatechange = () => {
+          if (!script.readyState || /loaded|complete/.test(script.readyState)) resolve()
+        }
+        script.onerror = reject
+        document.head.appendChild(script)
+      }),
+      getCSS: (url, id) => new Promise((resolve, reject) => {
+        const link = document.createElement('link')
+        link.rel = 'stylesheet'
+        link.href = url
+        if (id) link.id = id
+        link.onload = link.onreadystatechange = () => {
+          if (!link.readyState || /loaded|complete/.test(link.readyState)) resolve()
+        }
+        link.onerror = reject
+        document.head.appendChild(link)
+      }),
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const activateDarkMode = () => {
+        document.documentElement.setAttribute('data-theme', 'dark')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.setAttribute('data-theme', 'light')
+        if (document.querySelector('meta[name="theme-color"]') !== null) {
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: {"defaultEncoding":2,"translateDelay":0,"msgToTraditionalChinese":"繁","msgToSimplifiedChinese":"簡"},
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":false,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: {"limitCount":150,"languages":{"author":"作者: Geeeemi","link":"链接: ","source":"来源: Geeeemi's Blog","info":"著作权归作者所有。商业转载请联系作者获得授权，非商业转载请注明出处。"}},
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.12.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: true,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: '基于Ingress实现k8s七层调度和负载均衡',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><meta name="generator" content="Hexo 8.1.1"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/img/01.png);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/img/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/archives/"><div class="headline">文章</div><div class="length-num">11</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">43</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">10</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg" id="page-header" style="background-image: url(/img/cover/15.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/"><span class="site-name">Geeeemi's Blog</span></a><a class="nav-page-title" href="/"><span class="site-name">基于Ingress实现k8s七层调度和负载均衡</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/"><i class="fa-fw fas fa-home"></i><span> 主页</span></a></div><div class="menus_item"><a class="site-page" href="/archives/"><i class="fa-fw fas fa-archive"></i><span> 时间轴</span></a></div><div class="menus_item"><a class="site-page" href="/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/about/"><i class="fa-fw fas fa-heart"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">基于Ingress实现k8s七层调度和负载均衡</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-03-07T15:18:00.000Z" title="发表于 2026-03-07 23:18:00">2026-03-07</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-03-07T15:18:00.000Z" title="更新于 2026-03-07 23:18:00">2026-03-07</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/categories/Kubernetes-%E5%AE%9E%E6%88%98/">Kubernetes 实战</a></span></div><div class="meta-secondline"><span class="post-meta-separator">|</span><span class="post-meta-wordcount"><i class="far fa-file-word fa-fw post-meta-icon"></i><span class="post-meta-label">总字数:</span><span class="word-count">7.2k</span><span class="post-meta-separator">|</span><i class="far fa-clock fa-fw post-meta-icon"></i><span class="post-meta-label">阅读时长:</span><span>28分钟</span></span><span class="post-meta-separator">|</span><span class="post-meta-pv-cv" id="" data-flag-title=""><i class="far fa-eye fa-fw post-meta-icon"></i><span class="post-meta-label">浏览量:</span><span id="busuanzi_value_page_pv"><i class="fa-solid fa-spinner fa-spin"></i></span></span></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><h2 id="1、如何在k8s中实现应用的负载均衡？"><a href="#1、如何在k8s中实现应用的负载均衡？" class="headerlink" title="1、	如何在k8s中实现应用的负载均衡？"></a>1、	如何在k8s中实现应用的负载均衡？</h2><h3 id="负载均衡概述"><a href="#负载均衡概述" class="headerlink" title="负载均衡概述"></a>负载均衡概述</h3><p>负载均衡是将流量或请求分配到多个服务器之间，从而优化资源利用，减少单一服务器的压力，并提高应用的可靠性和可扩展性。它可以基于不同的网络层进行操作，主要包括四层负载均衡和七层负载均衡。</p>
+<h3 id="四层负载均衡"><a href="#四层负载均衡" class="headerlink" title="四层负载均衡"></a>四层负载均衡</h3><ul>
+<li>定义：四层负载均衡（L4）基于传输层（TCP&#x2F;UDP）进行操作，通常通过 IP 地址和端口号来分发流量。</li>
+<li>工作原理：在四层负载均衡中，流量根据客户端请求的 IP 地址和端口号来决定如何分配到后端服务器。例如，流量进入负载均衡器时，负载均衡器会查看请求的目标端口和协议，选择合适的后端服务器。</li>
+<li><strong>优缺点</strong>：<ul>
+<li>优点：实现简单、处理速度快，适合高吞吐量的应用。</li>
+<li>缺点：智能化不足，无法基于应用层的数据进行精细化流量分配。</li>
+<li>常见工具：如 IPVS（软件层面）、F5（硬件设备）等。</li>
+</ul>
+</li>
+</ul>
+<h3 id="七层负载均衡"><a href="#七层负载均衡" class="headerlink" title="七层负载均衡"></a>七层负载均衡</h3><ul>
+<li>定义：七层负载均衡（L7）工作在应用层，能够根据请求的内容（如 URL、浏览器类型等）来做更细粒度的流量控制。</li>
+<li><strong>工作原理</strong>：七层负载均衡可以根据 HTTP 请求的路径、请求头、Cookie 等信息来决定如何分发流量。例如，NGINX 或 Traefik 可以通过分析请求中的 URL 路径来选择不同的后端服务器。</li>
+<li><strong>优缺点</strong>：<ul>
+<li>优点：更灵活，支持根据请求内容（如 URL、HTTP 头等）进行流量的精准分发，适用于 Web 应用等场景。</li>
+<li>缺点：性能相对较低，处理复杂度高，可能导致较大的延迟。</li>
+<li><strong>常见工具</strong>：如 nginx、HAProxy、Traefik 等。</li>
+</ul>
+</li>
+</ul>
+<h3 id="四层与七层负载均衡的区别"><a href="#四层与七层负载均衡的区别" class="headerlink" title="四层与七层负载均衡的区别"></a>四层与七层负载均衡的区别</h3><ol>
+<li>工作层次：<ul>
+<li>四层负载均衡基于 IP 地址和端口，工作在 TCP&#x2F;UDP 层（传输层）。</li>
+<li>七层负载均衡则工作在应用层，可以基于 HTTP 请求的内容、URL、域名等做流量调度。</li>
+</ul>
+</li>
+<li>智能化：<ul>
+<li>四层负载均衡一般更简单、速度更快，但灵活性较低。</li>
+<li>七层负载均衡更灵活，可以基于 HTTP&#x2F;HTTPS 协议进行精细化流量分发（如基于 URL 进行路由）。</li>
+</ul>
+</li>
+<li>使用场景：<ul>
+<li>四层负载均衡更适合对性能要求高且不需要复杂流量控制的场景。</li>
+<li>七层负载均衡适合 Web 服务、API 网关等需要根据内容来做精细化流量控制的应用场景。</li>
+</ul>
+</li>
+</ol>
+<h3 id="OSI-七层模型"><a href="#OSI-七层模型" class="headerlink" title="OSI 七层模型"></a>OSI 七层模型</h3><p>OSI 七层模型帮助我们理解网络协议在不同层次上的工作方式：</p>
+<ul>
+<li>应用层：HTTP, FTP, DNS, SMTP等应用协议。</li>
+<li>表示层：数据格式化、加密等。</li>
+<li>会话层：管理会话的开始、持续和结束。</li>
+<li>传输层：如 TCP、UDP，提供端到端的传输。</li>
+<li>网络层：IP 协议，负责路由选择。</li>
+<li>数据链路层：MAC 地址，帧传输。</li>
+<li>物理层：实际的物理连接和信号传输。</li>
+</ul>
+<h3 id="在-Kubernetes-中为何需要负载均衡？"><a href="#在-Kubernetes-中为何需要负载均衡？" class="headerlink" title="在 Kubernetes 中为何需要负载均衡？"></a>在 Kubernetes 中为何需要负载均衡？</h3><ul>
+<li><strong>Pod 漂移问题</strong>：Pod 在 Kubernetes 集群中是动态的，它们可能会在不同的节点上启动，或者在某个节点故障时被重新调度到其他节点。每个 Pod 都有自己的 IP 地址，而且这个 IP 地址是动态分配的。Pod IP 会在 Pod 重启或迁移时发生变化。<ul>
+<li><strong>Kubernetes 中的 Service</strong>：Kubernetes 提供了 Service 对象来解决 Pod IP 漂移的问题。Service 会为一组 Pod 提供一个稳定的 IP 地址（ClusterIP），并使用负载均衡来将请求分发到后端的 Pod。这样，用户或应用程序不需要关注 Pod 的具体 IP 地址，而是通过 Service 的 IP 地址进行访问。</li>
+</ul>
+</li>
+<li><strong>NodePort 和 LoadBalancer</strong>：<ul>
+<li><strong>NodePort</strong>：每个 Kubernetes 节点都会开放一个端口，外部流量可以通过该端口访问集群中的 Service。NodePort 可以实现简单的外部访问，但缺点是它需要在每个节点上开放端口，并且没有自动负载均衡。</li>
+<li><strong>LoadBalancer</strong>：Kubernetes 支持通过 LoadBalancer 类型的 Service 自动将流量分发到后端 Pod。它通常依赖于云服务提供商的负载均衡服务（如 AWS、GCP、Azure 等）来实现高可用性和负载均衡。</li>
+</ul>
+</li>
+</ul>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><ul>
+<li>负载均衡是解决流量分发和资源利用的关键机制，Kubernetes 使用 Service 对象提供了一种基于 IP 地址的负载均衡方法。</li>
+<li>四层负载均衡适合网络层面的流量分发，而七层负载均衡则支持更灵活的应用层流量控制。</li>
+<li>在 Kubernetes 中，随着 Pod 的动态变化，负载均衡是确保应用高可用、可扩展的重要组成部分。</li>
+</ul>
+<hr>
+<h2 id="2、使用service做四层负载均衡"><a href="#2、使用service做四层负载均衡" class="headerlink" title="2、	使用service做四层负载均衡"></a>2、	使用service做四层负载均衡</h2><p>在 Kubernetes 中，<strong>Pod</strong> 是有生命周期的，这意味着 Pod 的 IP 地址是动态变化的，特别是在 Pod 被重建或调度到不同的节点时，其 IP 地址可能会发生变化。如果在这种情况下，服务依赖于 Pod 的静态 IP 地址，那么当 Pod 发生故障或被重新调度时，服务就会找不到对应的 Pod，导致服务不可用。</p>
+<p>为了解决这个问题，Kubernetes 引入了 <strong>Service</strong> 资源对象。Service 充当一个稳定的访问入口，它通过标签选择器（Label Selector）将客户端请求转发到后端的 Pod。这种方式避免了直接依赖 Pod 的 IP 地址，提供了一个抽象层，确保无论 Pod 的 IP 如何变化，客户端依然能够通过 Service 的 IP 或 DNS 名称访问应用。</p>
+<h3 id="Kubernetes-中-Service-的作用："><a href="#Kubernetes-中-Service-的作用：" class="headerlink" title="Kubernetes 中 Service 的作用："></a>Kubernetes 中 Service 的作用：</h3><ol>
+<li><strong>稳定的访问入口</strong>：Service 提供了一个稳定的访问入口，可以通过固定的 IP 地址或 DNS 名称来访问对应的 Pod 集合，而无需关注 Pod 的 IP 地址变化。</li>
+<li><strong>标签选择器</strong>：Service 通过标签选择器选择并访问对应的 Pod。无论 Pod 如何变化（如重新调度、重建等），Service 始终会自动识别并将流量路由到最新的 Pod 集合。</li>
+<li><strong>负载均衡</strong>：Service 会自动对其后端 Pod 进行负载均衡，确保流量均匀分配。</li>
+</ol>
+<h3 id="在-Kubernetes-中引入七层负载均衡的原因："><a href="#在-Kubernetes-中引入七层负载均衡的原因：" class="headerlink" title="在 Kubernetes 中引入七层负载均衡的原因："></a>在 Kubernetes 中引入七层负载均衡的原因：</h3><h4 id="四层负载均衡的局限性："><a href="#四层负载均衡的局限性：" class="headerlink" title="四层负载均衡的局限性："></a>四层负载均衡的局限性：</h4><p>四层负载均衡（L4）仅依赖于 IP 地址和端口来路由请求，这意味着它不能根据请求的应用层数据（如请求路径、请求头等）来做更精细的流量控制。四层负载均衡适用于简单的流量分发，但在一些高级应用场景下无法满足需求。</p>
+<h4 id="七层负载均衡的优势："><a href="#七层负载均衡的优势：" class="headerlink" title="七层负载均衡的优势："></a>七层负载均衡的优势：</h4><p>七层负载均衡（L7）是基于应用层进行流量控制的，它能够理解 HTTP、HTTPS 等协议，能够根据请求的详细内容进行路由和负载均衡。这对于一些复杂的应用场景非常有用，比如：</p>
+<ul>
+<li><strong>基于请求头进行路由</strong>：可以根据 <code>User-Agent</code>、<code>Authorization</code> 等请求头信息做不同的流量处理。</li>
+<li><strong>基于 URL 路径进行路由</strong>：可以根据请求的 URL 路径将流量路由到不同的后端服务或版本。例如，将 <code>/api</code> 路由到一个 API 服务，将 <code>/static</code> 路由到一个静态文件服务。</li>
+<li><strong>根据 Cookie 进行会话保持</strong>：能够实现会话粘性（Session Affinity），确保同一个用户的请求始终被路由到同一个 Pod。</li>
+</ul>
+<h4 id="端口管理问题："><a href="#端口管理问题：" class="headerlink" title="端口管理问题："></a>端口管理问题：</h4><p>使用 <strong>NodePort</strong> 方式暴露服务时，每个节点都需要暴露一个端口，而每个服务都需要一个唯一的端口号。这在 Kubernetes 集群中，尤其是在服务数量较多的情况下，会带来以下问题：</p>
+<ul>
+<li><strong>端口数量庞大且难以管理</strong>：随着服务数量的增加，每个节点上需要暴露的端口会迅速增加，导致端口的管理变得非常复杂。</li>
+<li><strong>容易冲突</strong>：如果每个服务都使用 NodePort，容易发生端口冲突，尤其是当服务数量非常庞大的时候。</li>
+<li><strong>维护困难</strong>：手动管理大量的端口并不是一个可扩展的解决方案，尤其是当集群规模增大时。</li>
+</ul>
+<h4 id="七层负载均衡解决端口管理问题："><a href="#七层负载均衡解决端口管理问题：" class="headerlink" title="七层负载均衡解决端口管理问题："></a>七层负载均衡解决端口管理问题：</h4><p>七层负载均衡器（如 <strong>Ingress</strong> 控制器）通过 HTTP&#x2F;HTTPS 协议将流量路由到后端 Pod，而不依赖于为每个服务分配一个独立的端口。所有流量都通过标准端口（如 80 或 443）进入，通过 URL、请求头等信息进行流量路由。这样可以避免暴露过多的端口，简化服务暴露和端口管理：</p>
+<ul>
+<li><strong>集中式入口</strong>：通过一个公共入口（如 Ingress Controller），集群外部的请求可以通过统一的端口进入，之后根据请求的内容（如 URL 路径）路由到不同的服务。</li>
+<li><strong>更好的可扩展性</strong>：可以在不增加大量端口的情况下，增加和管理更多的服务，使得集群的维护更加简单。</li>
+</ul>
+<h3 id="总结："><a href="#总结：" class="headerlink" title="总结："></a>总结：</h3><ul>
+<li><strong>四层负载均衡</strong> 适用于简单的基于 IP 和端口的流量路由，但无法处理复杂的应用层逻辑。</li>
+<li><strong>七层负载均衡</strong> 适用于更复杂的流量路由需求，可以根据应用层数据（如请求头、URL 路径、Cookie 等）进行智能流量分发，解决了 NodePort 端口管理问题，并提供了更灵活的流量控制。</li>
+</ul>
+<p>通过在 Kubernetes 中引入七层负载均衡，可以大大提高集群的可扩展性、灵活性和管理的简便性，同时为微服务架构提供更加精细化的流量路由控制。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s01 ~]# kubectl get svc			<span class="comment"># 1. 查看所有服务</span></span><br><span class="line">NAME         TYPE        CLUSTER-IP   EXTERNAL-IP   PORT(S)   AGE</span><br><span class="line">kubernetes   ClusterIP   10.96.0.1    &lt;none&gt;        443/TCP   44d</span><br><span class="line"></span><br><span class="line">[root@k8s01 ~]# kubectl describe svc kubernetes			<span class="comment"># 2. 查看服务详情  </span></span><br><span class="line">Name:              kubernetes</span><br><span class="line">Namespace:         default</span><br><span class="line">Labels:            component=apiserver</span><br><span class="line">                   provider=kubernetes</span><br><span class="line">Annotations:       &lt;none&gt;</span><br><span class="line">Selector:          &lt;none&gt;</span><br><span class="line">Type:              ClusterIP</span><br><span class="line">IP Family Policy:  SingleStack</span><br><span class="line">IP Families:       IPv4</span><br><span class="line">IP:                10.96.0.1</span><br><span class="line">IPs:               10.96.0.1</span><br><span class="line">Port:              https  443/TCP</span><br><span class="line">TargetPort:        6443/TCP</span><br><span class="line">Endpoints:         192.168.10.140:6443</span><br><span class="line">Session Affinity:  None</span><br><span class="line">Events:            &lt;none&gt;</span><br><span class="line"></span><br><span class="line">[root@k8s01 ~]# ipvsadm -Ln			<span class="comment"># 3. 查看IPVS规则</span></span><br><span class="line">IP Virtual Server version 1.2.1 (size=4096)</span><br><span class="line">Prot LocalAddress:Port Scheduler Flags</span><br><span class="line">  -&gt; RemoteAddress:Port           Forward Weight ActiveConn InActConn</span><br><span class="line">TCP  10.96.0.1:443 rr</span><br><span class="line">  -&gt; 192.168.10.140:6443          Masq    1      7          0         </span><br><span class="line">TCP  10.96.0.10:53 rr</span><br><span class="line">  -&gt; 10.243.15.194:53             Masq    1      0          0         </span><br><span class="line">  -&gt; 10.243.15.195:53             Masq    1      0          0         </span><br><span class="line">TCP  10.96.0.10:9153 rr</span><br><span class="line">  -&gt; 10.243.15.194:9153           Masq    1      0          0         </span><br><span class="line">  -&gt; 10.243.15.195:9153           Masq    1      0          0         </span><br><span class="line">UDP  10.96.0.10:53 rr</span><br><span class="line">  -&gt; 10.243.15.194:53             Masq    1      0          0         </span><br><span class="line">  -&gt; 10.243.15.195:53             Masq    1      0          0         </span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<hr>
+<h2 id="3、四层负载均衡和七层负载均衡对比分析"><a href="#3、四层负载均衡和七层负载均衡对比分析" class="headerlink" title="3、	四层负载均衡和七层负载均衡对比分析"></a>3、	四层负载均衡和七层负载均衡对比分析</h2><p>在负载均衡中，<strong>四层负载均衡</strong> 和 <strong>七层负载均衡</strong> 是两种常见的负载均衡策略，它们的主要区别在于处理流量的层次和方式。</p>
+<h3 id="四层负载均衡（Layer-4）："><a href="#四层负载均衡（Layer-4）：" class="headerlink" title="四层负载均衡（Layer 4）："></a>四层负载均衡（Layer 4）：</h3><ul>
+<li><strong>工作原理</strong>：四层负载均衡工作在 <strong>传输层</strong>（Layer 4）。它基于 <strong>IP 地址 + 端口号</strong> 来分发流量。常见的协议如 <strong>TCP</strong> 和 <strong>UDP</strong>。</li>
+<li><strong>如何工作</strong>：当流量到达负载均衡器时，它检查请求的 <strong>IP 地址</strong> 和 <strong>端口号</strong>。根据配置，流量会被转发到相应的后端服务器（或 Pod）。负载均衡器使用 <strong>NAT</strong>（网络地址转换）来处理流量，将流量映射到一个实际的服务器。<ul>
+<li>例如，当请求到达负载均衡器的 IP 地址和端口 80 时，负载均衡器会选择一台后台服务器进行处理，所有与该服务器建立的连接都将直接发送到该服务器。</li>
+<li><strong>特性</strong>：四层负载均衡 <strong>不关心请求的内容</strong>，它只处理 <strong>传输层的 IP 和端口信息</strong>，因此对于协议层的变化不敏感。</li>
+<li><strong>适用场景</strong>：适用于简单的流量分配，不需要处理应用层的内容。常见于传统的 Web 应用、数据库连接等。</li>
+</ul>
+</li>
+</ul>
+<h3 id="七层负载均衡（Layer-7）："><a href="#七层负载均衡（Layer-7）：" class="headerlink" title="七层负载均衡（Layer 7）："></a>七层负载均衡（Layer 7）：</h3><ul>
+<li><strong>工作原理</strong>：七层负载均衡工作在 <strong>应用层</strong>（Layer 7），即处理 <strong>HTTP</strong> 或 <strong>HTTPS</strong> 等应用协议。它能够深入到请求的 <strong>内容层</strong>，例如 URL、HTTP 头、Cookies 或请求方法。</li>
+<li><strong>如何工作</strong>：七层负载均衡除了根据 <strong>VIP + 端口</strong> 信息外，还能根据 <strong>URL、请求头、Cookies、请求方法</strong> 等信息来决定流量的去向。例如：<ul>
+<li><strong>URL 路由</strong>：根据请求的 URL 来决定路由到哪个后端服务，例如 <code>/api/v1</code> 路由到 API 服务，<code>/static</code> 路由到静态资源服务器。</li>
+<li><strong>请求头&#x2F;浏览器类型</strong>：七层负载均衡可以识别请求头中的语言类型，如英文或中文，然后路由到对应的服务器集群（如一个是英文内容，另一个是中文内容）。</li>
+<li><strong>Session 或 Cookie 路由</strong>：基于 Cookie 中存储的 session 信息，负载均衡器可以将用户的后续请求引导到相同的服务器上，保证会话的持续性。</li>
+</ul>
+</li>
+<li><strong>特性</strong>：七层负载均衡 <strong>关心应用层内容</strong>，能够根据 <strong>请求的具体内容</strong> 作出更智能的路由决策。这使得它比四层负载均衡更加灵活和强大。</li>
+<li><strong>适用场景</strong>：适用于 Web 应用、微服务架构等需要根据请求内容作出精细化路由的场景，支持用户个性化的内容分发。</li>
+</ul>
+<h3 id="四层与七层负载均衡的对比："><a href="#四层与七层负载均衡的对比：" class="headerlink" title="四层与七层负载均衡的对比："></a>四层与七层负载均衡的对比：</h3><table>
+<thead>
+<tr>
+<th>特性</th>
+<th><strong>四层负载均衡</strong></th>
+<th><strong>七层负载均衡</strong></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>工作层次</strong></td>
+<td>传输层（TCP、UDP）</td>
+<td>应用层（HTTP、HTTPS）</td>
+</tr>
+<tr>
+<td><strong>流量控制依据</strong></td>
+<td>IP 地址 + 端口号</td>
+<td>URL、请求头、Cookie、请求方法等应用层数据</td>
+</tr>
+<tr>
+<td><strong>负载均衡方式</strong></td>
+<td>简单的 IP 地址和端口映射</td>
+<td>基于请求的内容（如 URL、请求头、Cookie 等）</td>
+</tr>
+<tr>
+<td><strong>灵活性</strong></td>
+<td>低，无法识别流量内容，只能基于 IP 和端口进行分配</td>
+<td>高，能够识别并处理应用层的内容，实现更精细的路由</td>
+</tr>
+<tr>
+<td><strong>使用场景</strong></td>
+<td>传统 Web 应用、数据库、简单服务等</td>
+<td>微服务架构、动态 Web 内容分发、API 路由、根据用户偏好进行内容分发</td>
+</tr>
+<tr>
+<td><strong>优点</strong></td>
+<td>简单高效，适合流量较大的服务</td>
+<td>灵活可扩展，能够根据多种规则精细化路由</td>
+</tr>
+<tr>
+<td><strong>缺点</strong></td>
+<td>无法对请求内容做深度分析，不能根据用户请求的内容作出智能路由</td>
+<td>相对较复杂，处理开销大，适合流量较小且需要精细控制的场景</td>
+</tr>
+</tbody></table>
+<h3 id="总结：-1"><a href="#总结：-1" class="headerlink" title="总结："></a>总结：</h3><ul>
+<li><strong>四层负载均衡</strong>：主要用于简单的流量分发，基于 IP 地址和端口进行处理，适合传统的 Web 应用和需要简单负载均衡的场景。</li>
+<li><strong>七层负载均衡</strong>：提供更多的灵活性和智能化路由能力，可以基于请求的内容进行路由决策，适合现代微服务架构、动态 Web 内容和 API 网关等场景。</li>
+</ul>
+<p>七层负载均衡在现代微服务和分布式架构中越来越受到青睐，因为它可以根据流量的内容进行精细化路由，提供更好的性能和用户体验。</p>
+<hr>
+<h2 id="4、Ingress和-IngressController深度解读"><a href="#4、Ingress和-IngressController深度解读" class="headerlink" title="4、	Ingress和 IngressController深度解读"></a>4、	Ingress和 IngressController深度解读</h2><p>在 Kubernetes 中，<strong>Ingress</strong> 和 <strong>Ingress Controller</strong> 是处理外部请求并将其路由到适当后端服务的重要组件。它们结合使用，提供了强大的 <strong>七层负载均衡</strong> 和路由能力，能够根据请求的不同特征（如域名、路径等）将流量转发到不同的服务。</p>
+<h3 id="Ingress-资源"><a href="#Ingress-资源" class="headerlink" title="Ingress 资源"></a>Ingress 资源</h3><ul>
+<li><p><strong>定义</strong>：Ingress 是 Kubernetes 中的一个 API 资源对象，它允许外部 HTTP 和 HTTPS 请求访问集群内的服务。Ingress 提供了一种灵活的方式来路由流量，它不需要直接暴露服务的 IP 地址或端口，而是通过规则定义域名、路径等信息来代理请求。</p>
+</li>
+<li><p><strong>功能</strong>：Ingress 主要负责以下任务：</p>
+<ol>
+<li>根据请求的 <strong>域名</strong> 或 <strong>路径</strong> 将流量转发到不同的后端 <strong>Service</strong>。</li>
+<li>允许对集群内的服务进行访问控制、认证等处理。</li>
+<li>支持 SSL&#x2F;TLS 终端，以确保流量的安全性。</li>
+</ol>
+</li>
+<li><p><strong>典型配置</strong>：Ingress 配置文件通常通过 YAML 文件进行定义，指定了请求 URL 的路径、后端服务、TLS 配置等。例如：</p>
+<figure class="highlight yaml"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="attr">apiVersion:</span> <span class="string">networking.k8s.io/v1</span></span><br><span class="line"><span class="attr">kind:</span> <span class="string">Ingress</span></span><br><span class="line"><span class="attr">metadata:</span></span><br><span class="line">  <span class="attr">name:</span> <span class="string">example-ingress</span></span><br><span class="line"><span class="attr">spec:</span></span><br><span class="line">  <span class="attr">rules:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">host:</span> <span class="string">example.com</span></span><br><span class="line">    <span class="attr">http:</span></span><br><span class="line">      <span class="attr">paths:</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">path:</span> <span class="string">/app1</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line">        <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">service:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">app1-service</span></span><br><span class="line">            <span class="attr">port:</span></span><br><span class="line">              <span class="attr">number:</span> <span class="number">80</span></span><br><span class="line">      <span class="bullet">-</span> <span class="attr">path:</span> <span class="string">/app2</span></span><br><span class="line">        <span class="attr">pathType:</span> <span class="string">Prefix</span></span><br><span class="line">        <span class="attr">backend:</span></span><br><span class="line">          <span class="attr">service:</span></span><br><span class="line">            <span class="attr">name:</span> <span class="string">app2-service</span></span><br><span class="line">            <span class="attr">port:</span></span><br><span class="line">              <span class="attr">number:</span> <span class="number">80</span></span><br><span class="line">  <span class="attr">tls:</span></span><br><span class="line">  <span class="bullet">-</span> <span class="attr">hosts:</span></span><br><span class="line">    <span class="bullet">-</span> <span class="string">example.com</span></span><br><span class="line">    <span class="attr">secretName:</span> <span class="string">example-tls</span></span><br></pre></td></tr></table></figure>
+
+<p>这个配置将请求 <strong>example.com&#x2F;app1</strong> 转发到 <strong>app1-service</strong>，请求 <strong>example.com&#x2F;app2</strong> 转发到 <strong>app2-service</strong>。同时，它还配置了 <strong>TLS</strong>（HTTPS）终端，确保通信安全。</p>
+</li>
+</ul>
+<h3 id="Ingress-Controller"><a href="#Ingress-Controller" class="headerlink" title="Ingress Controller"></a>Ingress Controller</h3><ul>
+<li><strong>定义</strong>：Ingress Controller 是一个特殊的控制器，用于实现 Ingress 资源的实际功能。它负责监视 Kubernetes 集群中的 <strong>Ingress 资源</strong>，并根据 Ingress 规则生成负载均衡器的配置（如 Nginx、Traefik、HAProxy 等）。Ingress Controller 会根据 Ingress 资源中的配置动态更新负载均衡器，并处理外部请求的反向代理。</li>
+<li><strong>工作原理</strong>：<ol>
+<li><strong>Ingress Controller</strong> 会与 Kubernetes API Server 进行交互，获取集群中的 Ingress 配置。</li>
+<li>根据 <strong>Ingress</strong> 规则生成负载均衡配置，并将外部请求转发到指定的后端 <strong>Service</strong>。</li>
+<li>处理动态变化：Ingress Controller 会持续监视集群中 Pod 和 Service 的变化，实时更新配置，以确保流量能够正确路由，即使后端 Pod IP 地址发生变化。</li>
+</ol>
+</li>
+<li><strong>示例：Nginx Ingress Controller</strong>：<ul>
+<li><strong>Nginx</strong> 是常见的 Ingress Controller 之一。它通过反向代理将流量转发到后端的 Pods，但由于 Pods 的 IP 地址会随着 Pod 的创建和销毁而变化，Nginx 需要借助 <strong>Service</strong> 来稳定流量的路由。</li>
+<li><strong>Service</strong> 充当 Pod 的稳定入口，Ingress Controller 将流量转发到对应的 <strong>Service</strong>，Service 决定将流量传递给哪些 Pod。这样，后端 Pod 的 IP 变化不会影响到流量的正常路由。</li>
+</ul>
+</li>
+</ul>
+<h3 id="总结：Ingress-和-Ingress-Controller-的关系"><a href="#总结：Ingress-和-Ingress-Controller-的关系" class="headerlink" title="总结：Ingress 和 Ingress Controller 的关系"></a>总结：Ingress 和 Ingress Controller 的关系</h3><table>
+<thead>
+<tr>
+<th>组件</th>
+<th>描述</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Ingress</strong></td>
+<td>定义路由规则和服务访问入口（如域名、路径等），在集群中为外部流量提供统一入口。</td>
+</tr>
+<tr>
+<td><strong>Ingress Controller</strong></td>
+<td>实现 Ingress 规则的控制器，负责管理和配置负载均衡器（如 Nginx、Traefik 等），将流量转发到对应的服务。</td>
+</tr>
+</tbody></table>
+<h3 id="工作流程："><a href="#工作流程：" class="headerlink" title="工作流程："></a>工作流程：</h3><ol>
+<li><strong>创建 Ingress 资源</strong>：用户创建一个 Ingress 资源，定义路由规则和服务。</li>
+<li><strong>Ingress Controller</strong>：Ingress Controller 会监控 Kubernetes API 中的 Ingress 资源，实时获取更新并根据定义的规则生成负载均衡器配置。</li>
+<li><strong>反向代理</strong>：Ingress Controller（例如 Nginx）会根据 Ingress 中的配置，把外部流量路由到合适的 <strong>Service</strong>。</li>
+<li><strong>负载均衡</strong>：通过 Service，将流量均衡地分发到后端 Pod。</li>
+</ol>
+<h3 id="为什么要使用-Ingress-和-Ingress-Controller？"><a href="#为什么要使用-Ingress-和-Ingress-Controller？" class="headerlink" title="为什么要使用 Ingress 和 Ingress Controller？"></a>为什么要使用 Ingress 和 Ingress Controller？</h3><ol>
+<li><strong>集中管理</strong>：Ingress 提供了一个集中管理和配置路由规则的方式，不再需要为每个服务配置单独的端口或暴露多个 IP。</li>
+<li><strong>动态配置</strong>：Ingress Controller 会自动处理服务的变化，如 Pod 的重启、扩展等，无需手动调整配置。</li>
+<li><strong>七层负载均衡</strong>：Ingress 可以基于域名、路径等应用层信息进行流量路由，支持更加细粒度的控制。</li>
+<li><strong>支持 TLS&#x2F;SSL</strong>：Ingress 提供对 HTTPS 的支持，能够通过证书管理实现 TLS 加密通信。</li>
+<li><strong>外部访问集群服务</strong>：Ingress 使得集群内的服务能够通过域名方便地进行访问，避免直接暴露节点端口。</li>
+</ol>
+<h3 id="常见的-Ingress-Controllers："><a href="#常见的-Ingress-Controllers：" class="headerlink" title="常见的 Ingress Controllers："></a>常见的 Ingress Controllers：</h3><ul>
+<li><strong>Nginx Ingress Controller</strong>：最常见的 Ingress Controller，基于 Nginx 实现，支持多种高级路由规则、负载均衡和 SSL&#x2F;TLS 终端。</li>
+<li><strong>Traefik Ingress Controller</strong>：另一个流行的 Ingress Controller，支持自动化发现和多协议支持。</li>
+<li><strong>HAProxy Ingress Controller</strong>：基于 HAProxy 提供负载均衡功能，适用于高性能需求场景。</li>
+</ul>
+<h3 id="总结：-2"><a href="#总结：-2" class="headerlink" title="总结："></a>总结：</h3><ul>
+<li><strong>Ingress</strong> 用于定义集群外部流量的路由规则，而 <strong>Ingress Controller</strong> 是实际执行这些路由规则的负载均衡器，能够根据 Ingress 资源动态更新负载均衡配置。通过这两个组件的配合，Kubernetes 提供了一种灵活、可扩展的方式来管理外部流量的访问，并确保流量能够准确、有效地路由到后端服务。</li>
+</ul>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s01 ~]# kubectl explain ingress			<span class="comment"># 查看Ingress资源定义</span></span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<hr>
+<h2 id="5、实战：测试IngressHTTP-代理k8s内部站点"><a href="#5、实战：测试IngressHTTP-代理k8s内部站点" class="headerlink" title="5、	实战：测试IngressHTTP 代理k8s内部站点"></a>5、	实战：测试IngressHTTP 代理k8s内部站点</h2><p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/ingress-nginx">ingress-nginx官方仓库</a></p>
+<p>nginx-ingress-controller的v1.11.2和v1.1.0有很大区别，所以我这里优先考虑旧版的，后期做新版的出来了再重新写以一个文档</p>
+<p><a target="_blank" rel="noopener" href="https://github.com/kubernetes/ingress-nginx/blob/main/deploy/static/provider/baremetal/deploy.yaml">Ingress Controller 所需的yaml部署文件</a></p>
+<h3 id="前置准备-两台工作节点执行"><a href="#前置准备-两台工作节点执行" class="headerlink" title="前置准备(两台工作节点执行)"></a>前置准备(两台工作节点执行)</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 拉取镜像</span></span><br><span class="line">[root@k8s02 ~]# docker pull registry.cn-hangzhou.aliyuncs.com/google_containers/kube-webhook-certgen:v1.1.1</span><br><span class="line">[root@k8s02 ~]# docker pull registry.aliyuncs.com/google_containers/nginx-ingress-controller:v1.1.0</span><br><span class="line"></span><br><span class="line"><span class="comment"># 镜像打包</span></span><br><span class="line">[root@k8s02 ~]# docker save -o nginx-ingress-controller-v1.1.0.tar registry.aliyuncs.com/google_containers/nginx-ingress-controller:v1.1.0</span><br><span class="line">[root@k8s02 ~]# docker save -o kube-webhook-certgen-v1.1.1.tar registry.cn-hangzhou.aliyuncs.com/google_containers/kube-webhook-certgen:v1.1.1</span><br><span class="line"></span><br><span class="line"><span class="comment"># 镜像发送到另外一台工作节点</span></span><br><span class="line">[root@k8s02 ~]# scp ./nginx-ingress-controller-v1.1.0.tar root@192.168.10.142:/root/</span><br><span class="line">[root@k8s02 ~]# scp ./kube-webhook-certgen-v1.1.1.tar root@192.168.10.142:/root/</span><br><span class="line"></span><br><span class="line"><span class="comment"># 两台工作节点分别导入这两个镜像包</span></span><br><span class="line">[root@k8s02 ~]# ctr -n=k8s.io images import kube-webhook-certgen-v1.1.1.tar</span><br><span class="line">[root@k8s02 ~]# ctr -n=k8s.io images import nginx-ingress-controller-v1.1.0.tar</span><br><span class="line">[root@k8s03 ~]# ctr -n=k8s.io images import kube-webhook-certgen-v1.1.1.tar</span><br><span class="line">[root@k8s03 ~]# ctr -n=k8s.io images import nginx-ingress-controller-v1.1.0.tar</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h3 id="部署Ingress并验证"><a href="#部署Ingress并验证" class="headerlink" title="部署Ingress并验证"></a>部署Ingress并验证</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s01 ~]# <span class="built_in">mkdir</span> ingress</span><br><span class="line">[root@k8s01 ~]# <span class="built_in">cd</span> ingress/</span><br><span class="line"><span class="comment"># 下载的Ingress Nginx Controller的部署资源清单文件并更改镜像地址</span></span><br><span class="line">[root@k8s01 ingress]# wget https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.1.0/deploy/static/provider/baremetal/deploy.yaml</span><br><span class="line">[root@k8s01 ingress]# vim deploy.yaml</span><br><span class="line"><span class="comment"># 第327行</span></span><br><span class="line">      dnsPolicy: ClusterFirst</span><br><span class="line">      containers:</span><br><span class="line">        - name: controller</span><br><span class="line">          image: registry.aliyuncs.com/google_containers/nginx-ingress-controller:v1.1.0</span><br><span class="line">          imagePullPolicy: IfNotPresent</span><br><span class="line"><span class="comment"># 第608行</span></span><br><span class="line">      containers:</span><br><span class="line">        - name: create</span><br><span class="line">          image: registry.cn-hangzhou.aliyuncs.com/google_containers/kube-webhook-certgen:v1.1.1</span><br><span class="line">          imagePullPolicy: IfNotPresent</span><br><span class="line"><span class="comment"># 第660行</span></span><br><span class="line">      containers:</span><br><span class="line">        - name: patch</span><br><span class="line">          image: registry.cn-hangzhou.aliyuncs.com/google_containers/kube-webhook-certgen:v1.1.1</span><br><span class="line">          imagePullPolicy: IfNotPresent</span><br><span class="line"></span><br><span class="line"></span><br><span class="line"><span class="comment"># 1. 启动配置文件</span></span><br><span class="line">[root@k8s01 ingress]# kubectl apply -f deploy.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 做授权（不做会报错）</span></span><br><span class="line">[root@k8s01 ingress]# kubectl create clusterrolebinding clusterrolebinding-user \</span><br><span class="line">  --clusterrole=cluster-admin \</span><br><span class="line">  --user=system:serviceaccount:ingress-nginx:ingress-nginx</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 观察Pod状态</span></span><br><span class="line">[root@k8s01 ~]# kubectl get pods -n ingress-nginx</span><br><span class="line">NAME                                        READY   STATUS      RESTARTS   AGE</span><br><span class="line">ingress-nginx-admission-create-mbc9h        0/1     Completed   0          4m32s</span><br><span class="line">ingress-nginx-admission-patch-8j2fj         0/1     Completed   0          4m32s</span><br><span class="line">ingress-nginx-controller-689bf85df7-7qrzd   1/1     Running     0          4m32s</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 查 NodePort 端口号（浏览器访问用这个）</span></span><br><span class="line">[root@k8s01 ~]# kubectl get svc -n ingress-nginx ingress-nginx-controller</span><br><span class="line">NAME                       TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)                      AGE</span><br><span class="line">ingress-nginx-controller   NodePort   10.105.6.152   &lt;none&gt;        80:30356/TCP,443:31163/TCP   11m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 5. 查 Service 是否绑定 Pod</span></span><br><span class="line">[root@k8s01 ~]# kubectl get endpoints -n ingress-nginx</span><br><span class="line">NAME                                 ENDPOINTS                            AGE</span><br><span class="line">ingress-nginx-controller             10.242.160.21:443,10.242.160.21:80   11m</span><br><span class="line">ingress-nginx-controller-admission   10.242.160.21:8443                   11m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 6. 查 Controller 是否正常运行</span></span><br><span class="line">[root@k8s01 ~]# kubectl get pods -n ingress-nginx | grep controller</span><br><span class="line">ingress-nginx-controller-689bf85df7-7qrzd   1/1     Running     0          11m</span><br></pre></td></tr></table></figure>
+
+
+
+<hr>
+<h3 id="部署Tomcat测试应用"><a href="#部署Tomcat测试应用" class="headerlink" title="部署Tomcat测试应用"></a>部署Tomcat测试应用</h3><p>把做好的<code>docker.io/k8s/tomcat:v1</code>包上传到两台工作节点上</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 检查tomcat镜像包存在情况</span></span><br><span class="line">[root@k8s02 ~]# ctr -n=k8s.io images <span class="built_in">ls</span> | grep tomcat</span><br><span class="line">docker.io/k8s/tomcat:v1                                                                                                                          application/vnd.oci.image.manifest.v1+json                sha256:da9a46089dd7dc6063c6118d455c987b4364ccf97714407de9884b3c30c024a1 813.5 MiB linux/amd64                                                                  io.cri-containerd.image=managed                                 </span><br><span class="line">[root@k8s03 ~]# ctr -n=k8s.io images <span class="built_in">ls</span> | grep tomcat</span><br><span class="line">docker.io/k8s/tomcat:v1                                                                                                                          application/vnd.oci.image.manifest.v1+json                sha256:da9a46089dd7dc6063c6118d455c987b4364ccf97714407de9884b3c30c024a1 813.5 MiB linux/amd64                                                                  io.cri-containerd.image=managed                                 </span><br><span class="line"></span><br><span class="line"><span class="comment"># Tomcat部署和Service配置</span></span><br><span class="line">[root@k8s01 ingress]# vim catingress-demo.yaml</span><br><span class="line">apiVersion: apps/v1</span><br><span class="line">kind: Deployment</span><br><span class="line">metadata:</span><br><span class="line">  name: tomcat-deploy</span><br><span class="line">  namespace: default</span><br><span class="line">spec:</span><br><span class="line">  replicas: 2</span><br><span class="line">  selector:</span><br><span class="line">    matchLabels:</span><br><span class="line">      app: tomcat</span><br><span class="line">      release: canary</span><br><span class="line">  template:</span><br><span class="line">    metadata:</span><br><span class="line">      labels:</span><br><span class="line">        app: tomcat</span><br><span class="line">        release: canary</span><br><span class="line">    spec:</span><br><span class="line">      containers:</span><br><span class="line">      - name: tomcat</span><br><span class="line">        image: docker.io/k8s/tomcat:v1</span><br><span class="line">        imagePullPolicy: IfNotPresent</span><br><span class="line">        ports:</span><br><span class="line">        - name: http</span><br><span class="line">          containerPort: 8080</span><br><span class="line">        - name: ajp</span><br><span class="line">          containerPort: 8009</span><br><span class="line">---</span><br><span class="line">apiVersion: v1</span><br><span class="line">kind: Service</span><br><span class="line">metadata:</span><br><span class="line">  name: tomcat-service</span><br><span class="line">  namespace: default</span><br><span class="line">spec:</span><br><span class="line">  selector:</span><br><span class="line">    app: tomcat</span><br><span class="line">    release: canary</span><br><span class="line">  ports:</span><br><span class="line">  - name: http</span><br><span class="line">    port: 8080</span><br><span class="line">    targetPort: 8080</span><br><span class="line">  - name: ajp</span><br><span class="line">    port: 8009</span><br><span class="line">    targetPort: 8009</span><br><span class="line">    </span><br><span class="line">[root@k8s01 ingress]# kubectl apply -f catingress-demo.yaml</span><br><span class="line">[root@k8s01 ~]# kubectl get pods -owide</span><br><span class="line">NAME                               READY   STATUS    RESTARTS      AGE   IP              NODE    NOMINATED NODE   READINESS GATES</span><br><span class="line">nfs-provisioner-7cb9c7f499-cxdcw   1/1     Running   1 (22h ago)   17d   10.250.24.83    k8s03   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">tomcat-deploy-66b4f6ffb6-8rtmh     1/1     Running   0             14s   10.250.24.97    k8s03   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">tomcat-deploy-66b4f6ffb6-b46pp     1/1     Running   0             14s   10.242.160.24   k8s02   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">[root@k8s01 ~]# kubectl get svc</span><br><span class="line">NAME             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE</span><br><span class="line">kubernetes       ClusterIP   10.96.0.1        &lt;none&gt;        443/TCP             45d</span><br><span class="line">tomcat-service   ClusterIP   10.108.102.240   &lt;none&gt;        8080/TCP,8009/TCP   17s</span><br><span class="line">[root@k8s01 ~]# kubectl get pods -owide -l app=tomcat</span><br><span class="line">NAME                             READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES</span><br><span class="line">tomcat-deploy-66b4f6ffb6-8rtmh   1/1     Running   0          23s   10.250.24.97    k8s03   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">tomcat-deploy-66b4f6ffb6-b46pp   1/1     Running   0          23s   10.242.160.24   k8s02   &lt;none&gt;           &lt;none&gt;</span><br><span class="line">[root@k8s01 ~]# kubectl describe svc tomcat | grep Endpoint</span><br><span class="line">Endpoints:         10.242.160.24:8080,10.250.24.97:8080</span><br><span class="line">Endpoints:         10.242.160.24:8009,10.250.24.97:8009</span><br></pre></td></tr></table></figure>
+
+<p>通过上面操作可以看到tomcat这个service已经把pod关联到了，请求serviceip，看看能否代理pod。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br></pre></td><td class="code"><pre><span class="line">[root@k8s01 ~]# kubectl get svc</span><br><span class="line">NAME             TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)             AGE</span><br><span class="line">kubernetes       ClusterIP   10.96.0.1        &lt;none&gt;        443/TCP             45d</span><br><span class="line">tomcat-service   ClusterIP   10.108.102.240   &lt;none&gt;        8080/TCP,8009/TCP   2m58s</span><br><span class="line">[root@k8s01 ~]# curl 10.242.160.24:8080 | grep <span class="string">&quot;Apache Tomcat&quot;</span></span><br><span class="line">  % Total    % Received % Xferd  Average Speed   Time    Time     Time  Current</span><br><span class="line">                                 Dload  Upload   Total   Spent    Left  Speed</span><br><span class="line">  0     0    0     0    0     0      0      0 --:--:-- --:--:-- --:--:--     0        &lt;title&gt;Apache Tomcat/8.0.26&lt;/title&gt;</span><br><span class="line">                &lt;h1&gt;Apache Tomcat/8.0.26&lt;/h1&gt;</span><br><span class="line">100 11230    0 11230    0     0  13180      0 --:--:-- --:--:-- --:--:-- 13165</span><br><span class="line"></span><br><span class="line"></span><br><span class="line">[root@k8s01 ingress]# vim tomcat-ingress.yaml</span><br><span class="line">apiVersion: networking.k8s.io/v1</span><br><span class="line">kind: Ingress</span><br><span class="line">metadata:</span><br><span class="line">  name: tomcat-ingress</span><br><span class="line">  namespace: default</span><br><span class="line">spec:</span><br><span class="line">  ingressClassName: nginx</span><br><span class="line">  rules:</span><br><span class="line">  - host: tomcat.example.com			<span class="comment"># 指定服务的域名</span></span><br><span class="line">    http:</span><br><span class="line">      paths:</span><br><span class="line">      - path: /</span><br><span class="line">        pathType: Prefix</span><br><span class="line">        backend:</span><br><span class="line">          service:</span><br><span class="line">            name: tomcat-service</span><br><span class="line">            port:</span><br><span class="line">              number: 8080</span><br><span class="line">              </span><br><span class="line"></span><br><span class="line">[root@k8s01 ingress]# kubectl apply -f tomcat-ingress.yaml</span><br><span class="line">ingress.networking.k8s.io/tomcat-ingress created</span><br><span class="line">[root@k8s01 ~]# kubectl get ingressclass</span><br><span class="line">NAME    CONTROLLER             PARAMETERS   AGE</span><br><span class="line">nginx   k8s.io/ingress-nginx   &lt;none&gt;       79m</span><br><span class="line">[root@k8s01 ~]# kubectl get ingress</span><br><span class="line">NAME             CLASS   HOSTS                ADDRESS          PORTS   AGE</span><br><span class="line">tomcat-ingress   nginx   tomcat.example.com   192.168.10.141   80      2m15s</span><br><span class="line">[root@k8s01 ~]# curl -H <span class="string">&quot;Host: tomcat.example.com&quot;</span> http://192.168.10.140:30356  <span class="comment"># 返回数据包</span></span><br><span class="line"></span><br><span class="line"><span class="comment"># 修改电脑的hosts文件，浏览器访问http://tomcat.example.com:30356/可看到tomcat正常的页面</span></span><br><span class="line"><span class="comment"># 在windows电脑上的hosts文件末尾增加以下内容</span></span><br><span class="line">tomcat.example.com 192.168.10.140</span><br><span class="line"></span><br><span class="line">[root@k8s01 ~]# kubectl get pods -n ingress-nginx</span><br><span class="line">NAME                                        READY   STATUS      RESTARTS   AGE</span><br><span class="line">ingress-nginx-admission-create-mbc9h        0/1     Completed   0          28m</span><br><span class="line">ingress-nginx-admission-patch-8j2fj         0/1     Completed   0          28m</span><br><span class="line">ingress-nginx-controller-689bf85df7-7qrzd   1/1     Running     0          28m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 查看镜像中的配置文件，发现上面的域名已经写入上面了，封装的服务是openrestry: nginx+lua（推荐学）</span></span><br><span class="line">[root@k8s01 ~]# kubectl <span class="built_in">exec</span> -it ingress-nginx-controller-689bf85df7-7qrzd -n ingress-nginx -- /bin/bash -c <span class="string">&quot;cat /etc/nginx/nginx.conf&quot;</span> </span><br></pre></td></tr></table></figure>
+
+
+
+
+
+<hr>
+<h2 id="6、实战：测试IngressHTTPS代理tomcat"><a href="#6、实战：测试IngressHTTPS代理tomcat" class="headerlink" title="6、	实战：测试IngressHTTPS代理tomcat"></a>6、	实战：测试IngressHTTPS代理tomcat</h2><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment"># 1. 生成私钥</span></span><br><span class="line">[root@k8s01 ~]# openssl genrsa -out tls.key 2048</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 生成自签名证书</span></span><br><span class="line">[root@k8s01 ~]# openssl req -new -x509 -key tls.key -out tls.crt -subj /C=CN/ST=Beijing/L=Beijing/O=DevOps/CN=tomcat.example.com</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 创建 secret</span></span><br><span class="line">[root@k8s01 ~]# kubectl create secret tls tomcat-ingress-secret --cert=tls.crt --key=tls.key</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 查看 secret</span></span><br><span class="line">[root@k8s01 ~]# kubectl get secret</span><br><span class="line">NAME                    TYPE                DATA   AGE</span><br><span class="line">tomcat-ingress-secret   kubernetes.io/tls   2      62s</span><br><span class="line">[root@k8s01 ~]# kubectl describe secret tomcat-ingress-secret</span><br><span class="line">Name:         tomcat-ingress-secret</span><br><span class="line">Namespace:    default</span><br><span class="line">Labels:       &lt;none&gt;</span><br><span class="line">Annotations:  &lt;none&gt;</span><br><span class="line"></span><br><span class="line">Type:  kubernetes.io/tls</span><br><span class="line"></span><br><span class="line">Data</span><br><span class="line">====</span><br><span class="line">tls.crt:  1318 bytes</span><br><span class="line">tls.key:  1679 bytes</span><br><span class="line"></span><br><span class="line">[root@k8s01 ingress]# vim ingress-tomcat-tls.yaml</span><br><span class="line">apiVersion: networking.k8s.io/v1</span><br><span class="line">kind: Ingress</span><br><span class="line">metadata:</span><br><span class="line">  name: ingress-tomcat-tls</span><br><span class="line">  namespace: default</span><br><span class="line">spec:</span><br><span class="line">  ingressClassName: nginx</span><br><span class="line">  tls:</span><br><span class="line">  - hosts:</span><br><span class="line">    - tomcats.example.com</span><br><span class="line">    secretName: tomcat-ingress-secret</span><br><span class="line">  rules:</span><br><span class="line">  - host: tomcats.example.com</span><br><span class="line">    http:</span><br><span class="line">      paths:</span><br><span class="line">      - path: /</span><br><span class="line">        pathType: Prefix</span><br><span class="line">        backend:</span><br><span class="line">          service:</span><br><span class="line">            name: tomcat-service</span><br><span class="line">            port:</span><br><span class="line">              number: 8080</span><br><span class="line">              </span><br><span class="line"><span class="comment"># 1. 部署HTTPS Ingress</span></span><br><span class="line">kubectl apply -f ingress-tomcat-tls.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># 2. 删除旧的HTTP Ingress（如果不需要）</span></span><br><span class="line">kubectl delete -f ingress-myapp.yaml</span><br><span class="line"></span><br><span class="line"><span class="comment"># 3. 查看所有Ingress规则</span></span><br><span class="line">[root@k8s01 ingress]# kubectl get ingress</span><br><span class="line">NAME                 CLASS   HOSTS                 ADDRESS          PORTS     AGE</span><br><span class="line">ingress-tomcat-tls   nginx   tomcats.example.com   192.168.10.141   80, 443   83s</span><br><span class="line">tomcat-ingress       nginx   tomcat.example.com    192.168.10.141   80        3h40m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 4. 查看Ingress Controller Pod状态</span></span><br><span class="line">[root@k8s01 ingress]# kubectl get pods -n ingress-nginx</span><br><span class="line">NAME                                        READY   STATUS      RESTARTS   AGE</span><br><span class="line">ingress-nginx-admission-create-mbc9h        0/1     Completed   0          4h9m</span><br><span class="line">ingress-nginx-admission-patch-8j2fj         0/1     Completed   0          4h9m</span><br><span class="line">ingress-nginx-controller-689bf85df7-7qrzd   1/1     Running     0          4h9m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 5. 查看Ingress Controller配置</span></span><br><span class="line">[root@k8s01 ingress]# kubectl get cm ingress-nginx-controller -n ingress-nginx -o yaml</span><br><span class="line">apiVersion: v1</span><br><span class="line">data:</span><br><span class="line">  allow-snippet-annotations: <span class="string">&quot;true&quot;</span></span><br><span class="line">kind: ConfigMap</span><br><span class="line">metadata:</span><br><span class="line">  annotations:</span><br><span class="line">    kubectl.kubernetes.io/last-applied-configuration: |</span><br><span class="line">      &#123;<span class="string">&quot;apiVersion&quot;</span>:<span class="string">&quot;v1&quot;</span>,<span class="string">&quot;data&quot;</span>:&#123;<span class="string">&quot;allow-snippet-annotations&quot;</span>:<span class="string">&quot;true&quot;</span>&#125;,<span class="string">&quot;kind&quot;</span>:<span class="string">&quot;ConfigMap&quot;</span>,<span class="string">&quot;metadata&quot;</span>:&#123;<span class="string">&quot;annotations&quot;</span>:&#123;&#125;,<span class="string">&quot;labels&quot;</span>:&#123;<span class="string">&quot;app.kubernetes.io/component&quot;</span>:<span class="string">&quot;controller&quot;</span>,<span class="string">&quot;app.kubernetes.io/instance&quot;</span>:<span class="string">&quot;ingress-nginx&quot;</span>,<span class="string">&quot;app.kubernetes.io/managed-by&quot;</span>:<span class="string">&quot;Helm&quot;</span>,<span class="string">&quot;app.kubernetes.io/name&quot;</span>:<span class="string">&quot;ingress-nginx&quot;</span>,<span class="string">&quot;app.kubernetes.io/version&quot;</span>:<span class="string">&quot;1.1.0&quot;</span>,<span class="string">&quot;helm.sh/chart&quot;</span>:<span class="string">&quot;ingress-nginx-4.0.10&quot;</span>&#125;,<span class="string">&quot;name&quot;</span>:<span class="string">&quot;ingress-nginx-controller&quot;</span>,<span class="string">&quot;namespace&quot;</span>:<span class="string">&quot;ingress-nginx&quot;</span>&#125;&#125;</span><br><span class="line">  creationTimestamp: <span class="string">&quot;2026-02-12T08:42:01Z&quot;</span></span><br><span class="line">  labels:</span><br><span class="line">    app.kubernetes.io/component: controller</span><br><span class="line">    app.kubernetes.io/instance: ingress-nginx</span><br><span class="line">    app.kubernetes.io/managed-by: Helm</span><br><span class="line">    app.kubernetes.io/name: ingress-nginx</span><br><span class="line">    app.kubernetes.io/version: 1.1.0</span><br><span class="line">    helm.sh/chart: ingress-nginx-4.0.10</span><br><span class="line">  name: ingress-nginx-controller</span><br><span class="line">  namespace: ingress-nginx</span><br><span class="line">  resourceVersion: <span class="string">&quot;430490&quot;</span></span><br><span class="line">  uid: f9115467-eec2-49c1-b8d8-fc7dd6e60bd3</span><br><span class="line"></span><br><span class="line"><span class="comment"># 6. 查看HTTPS Secret是否创建成功</span></span><br><span class="line">[root@k8s01 ingress]# kubectl get secret tomcat-ingress-secret</span><br><span class="line">NAME                    TYPE                DATA   AGE</span><br><span class="line">tomcat-ingress-secret   kubernetes.io/tls   2      37m</span><br><span class="line"></span><br><span class="line"><span class="comment"># 7. 测试HTTPS访问（带域名），能看见数据包返回</span></span><br><span class="line">curl -k -H <span class="string">&quot;Host: tomcats.example.com&quot;</span> https://192.168.10.140:31163</span><br><span class="line"></span><br><span class="line"><span class="comment"># 8. windows的hosts文件末尾添加以下内容，之后浏览器访问https://tomcats.example.com:31163/看到正常tomcat界面</span></span><br><span class="line">tomcat.example.com 192.168.10.140</span><br></pre></td></tr></table></figure>
+
+<h3 id="删除本节所创建的Pod"><a href="#删除本节所创建的Pod" class="headerlink" title="删除本节所创建的Pod"></a>删除本节所创建的Pod</h3><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">kubectl delete -f ingress-tomcat-tls.yaml</span><br><span class="line">kubectl delete -f tomcat-ingress.yaml</span><br><span class="line">kubectl delete -f catingress-demo.yaml</span><br><span class="line">kubectl delete secret tomcat-ingress-secret</span><br><span class="line">kubectl delete namespace ingress-nginx</span><br><span class="line">kubectl delete clusterrolebinding clusterrolebinding-user</span><br></pre></td></tr></table></figure>
+
+
+
+
+
+
+
+
+
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://geeeemi.github.io">Geeeemi</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://geeeemi.github.io/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">https://geeeemi.github.io/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://geeeemi.github.io" target="_blank">Geeeemi's Blog</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/tags/Ingress/">Ingress</a><a class="post-meta__tags" href="/tags/%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/">负载均衡</a></div><div class="post-share"><div class="social-share" data-image="/img/cover/15.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related full-width" href="/2026/01/25/kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Statefulset%E8%AF%A6%E8%A7%A3%E5%92%8C%E7%AE%A1%E7%90%86%E6%9C%89%E7%8A%B6%E6%80%81%E7%9A%84%E5%BA%94%E7%94%A8/" title="kubernetes控制器-Statefulset详解和管理有状态的应用"><img class="cover" src="/img/cover/14.png" onerror="onerror=null;src='/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">kubernetes控制器-Statefulset详解和管理有状态的应用</div></div><div class="info-2"><div class="info-item-1">1、StatefulSet控制器：概念、原理解读​		StatefulSet 是 Kubernetes 中用于管理有状态应用的一种控制器，核心目标是在容器化和动态调度的环境下，为应用提供“稳定性”和“可预期性”。与 Deployment 不同，StatefulSet 为每个 Pod 分配固定且唯一的身份，并在 Pod 重建后保持不变，从而满足有状态应用对网络标识、启动顺序和数据持久性的要求。StatefulSet 管理的每个 Pod 都具有唯一的名称（如 pod-0、pod-1），并且对应稳定的 DNS 名称，使其他组件可以通过固定名称访问指定实例，而无需关心 Pod IP 的变化。同时，StatefulSet 支持有序创建、有序删除和有序扩缩容，确保 Pod 按照定义顺序逐个启动或终止，这对于主从架构或存在依赖关系的应用尤为重要。 ​		在存储方面，StatefulSet 通常与 PVC 结合使用，为每个 Pod 绑定独立的持久化卷，即使 Pod 被删除并重新创建，原有数据仍然能够保留，从而保证业务状态不丢失。  什么是有状态服务？ ​		所谓有状态服务，是指服务在运行过程中需...</div></div></div></a></nav></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/img/avatar.png" onerror="this.onerror=null;this.src='/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">Geeeemi</div><div class="author-info-description"></div><div class="site-data"><a href="/archives/"><div class="headline">文章</div><div class="length-num">11</div></a><a href="/tags/"><div class="headline">标签</div><div class="length-num">43</div></a><a href="/categories/"><div class="headline">分类</div><div class="length-num">10</div></a></div><a id="card-info-btn" target="_blank" rel="noopener" href="https://github.com/Geeeemi"><i class="fab fa-github"></i><span>Follow Me</span></a><div class="card-info-social-icons"><a class="social-icon" href="https://github.com/Geeeemi" target="_blank" title="Github"><i class="fab fa-github" style="color: #24292e;"></i></a><a class="social-icon" href="mailto:yaka6875@gmail.com" target="_blank" title="Email"><i class="fas fa-envelope" style="color: #4a7dbe;"></i></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">这是我的博客，有问题邮箱联系我</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#1%E3%80%81%E5%A6%82%E4%BD%95%E5%9C%A8k8s%E4%B8%AD%E5%AE%9E%E7%8E%B0%E5%BA%94%E7%94%A8%E7%9A%84%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%EF%BC%9F"><span class="toc-number">1.</span> <span class="toc-text">1、	如何在k8s中实现应用的负载均衡？</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E6%A6%82%E8%BF%B0"><span class="toc-number">1.1.</span> <span class="toc-text">负载均衡概述</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="toc-number">1.2.</span> <span class="toc-text">四层负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="toc-number">1.3.</span> <span class="toc-text">七层负载均衡</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E5%B1%82%E4%B8%8E%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%8C%BA%E5%88%AB"><span class="toc-number">1.4.</span> <span class="toc-text">四层与七层负载均衡的区别</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#OSI-%E4%B8%83%E5%B1%82%E6%A8%A1%E5%9E%8B"><span class="toc-number">1.5.</span> <span class="toc-text">OSI 七层模型</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%A8-Kubernetes-%E4%B8%AD%E4%B8%BA%E4%BD%95%E9%9C%80%E8%A6%81%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%EF%BC%9F"><span class="toc-number">1.6.</span> <span class="toc-text">在 Kubernetes 中为何需要负载均衡？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93"><span class="toc-number">1.7.</span> <span class="toc-text">总结</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#2%E3%80%81%E4%BD%BF%E7%94%A8service%E5%81%9A%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1"><span class="toc-number">2.</span> <span class="toc-text">2、	使用service做四层负载均衡</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Kubernetes-%E4%B8%AD-Service-%E7%9A%84%E4%BD%9C%E7%94%A8%EF%BC%9A"><span class="toc-number">2.1.</span> <span class="toc-text">Kubernetes 中 Service 的作用：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9C%A8-Kubernetes-%E4%B8%AD%E5%BC%95%E5%85%A5%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%8E%9F%E5%9B%A0%EF%BC%9A"><span class="toc-number">2.2.</span> <span class="toc-text">在 Kubernetes 中引入七层负载均衡的原因：</span></a><ol class="toc-child"><li class="toc-item toc-level-4"><a class="toc-link" href="#%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%B1%80%E9%99%90%E6%80%A7%EF%BC%9A"><span class="toc-number">2.2.1.</span> <span class="toc-text">四层负载均衡的局限性：</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E4%BC%98%E5%8A%BF%EF%BC%9A"><span class="toc-number">2.2.2.</span> <span class="toc-text">七层负载均衡的优势：</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E7%AB%AF%E5%8F%A3%E7%AE%A1%E7%90%86%E9%97%AE%E9%A2%98%EF%BC%9A"><span class="toc-number">2.2.3.</span> <span class="toc-text">端口管理问题：</span></a></li><li class="toc-item toc-level-4"><a class="toc-link" href="#%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E8%A7%A3%E5%86%B3%E7%AB%AF%E5%8F%A3%E7%AE%A1%E7%90%86%E9%97%AE%E9%A2%98%EF%BC%9A"><span class="toc-number">2.2.4.</span> <span class="toc-text">七层负载均衡解决端口管理问题：</span></a></li></ol></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9A"><span class="toc-number">2.3.</span> <span class="toc-text">总结：</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#3%E3%80%81%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E5%92%8C%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E5%AF%B9%E6%AF%94%E5%88%86%E6%9E%90"><span class="toc-number">3.</span> <span class="toc-text">3、	四层负载均衡和七层负载均衡对比分析</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%EF%BC%88Layer-4%EF%BC%89%EF%BC%9A"><span class="toc-number">3.1.</span> <span class="toc-text">四层负载均衡（Layer 4）：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%EF%BC%88Layer-7%EF%BC%89%EF%BC%9A"><span class="toc-number">3.2.</span> <span class="toc-text">七层负载均衡（Layer 7）：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%9B%9B%E5%B1%82%E4%B8%8E%E4%B8%83%E5%B1%82%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1%E7%9A%84%E5%AF%B9%E6%AF%94%EF%BC%9A"><span class="toc-number">3.3.</span> <span class="toc-text">四层与七层负载均衡的对比：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9A-1"><span class="toc-number">3.4.</span> <span class="toc-text">总结：</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#4%E3%80%81Ingress%E5%92%8C-IngressController%E6%B7%B1%E5%BA%A6%E8%A7%A3%E8%AF%BB"><span class="toc-number">4.</span> <span class="toc-text">4、	Ingress和 IngressController深度解读</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#Ingress-%E8%B5%84%E6%BA%90"><span class="toc-number">4.1.</span> <span class="toc-text">Ingress 资源</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#Ingress-Controller"><span class="toc-number">4.2.</span> <span class="toc-text">Ingress Controller</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9AIngress-%E5%92%8C-Ingress-Controller-%E7%9A%84%E5%85%B3%E7%B3%BB"><span class="toc-number">4.3.</span> <span class="toc-text">总结：Ingress 和 Ingress Controller 的关系</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B7%A5%E4%BD%9C%E6%B5%81%E7%A8%8B%EF%BC%9A"><span class="toc-number">4.4.</span> <span class="toc-text">工作流程：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%A6%81%E4%BD%BF%E7%94%A8-Ingress-%E5%92%8C-Ingress-Controller%EF%BC%9F"><span class="toc-number">4.5.</span> <span class="toc-text">为什么要使用 Ingress 和 Ingress Controller？</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%B8%B8%E8%A7%81%E7%9A%84-Ingress-Controllers%EF%BC%9A"><span class="toc-number">4.6.</span> <span class="toc-text">常见的 Ingress Controllers：</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E6%80%BB%E7%BB%93%EF%BC%9A-2"><span class="toc-number">4.7.</span> <span class="toc-text">总结：</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#5%E3%80%81%E5%AE%9E%E6%88%98%EF%BC%9A%E6%B5%8B%E8%AF%95IngressHTTP-%E4%BB%A3%E7%90%86k8s%E5%86%85%E9%83%A8%E7%AB%99%E7%82%B9"><span class="toc-number">5.</span> <span class="toc-text">5、	实战：测试IngressHTTP 代理k8s内部站点</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%89%8D%E7%BD%AE%E5%87%86%E5%A4%87-%E4%B8%A4%E5%8F%B0%E5%B7%A5%E4%BD%9C%E8%8A%82%E7%82%B9%E6%89%A7%E8%A1%8C"><span class="toc-number">5.1.</span> <span class="toc-text">前置准备(两台工作节点执行)</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%83%A8%E7%BD%B2Ingress%E5%B9%B6%E9%AA%8C%E8%AF%81"><span class="toc-number">5.2.</span> <span class="toc-text">部署Ingress并验证</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#%E9%83%A8%E7%BD%B2Tomcat%E6%B5%8B%E8%AF%95%E5%BA%94%E7%94%A8"><span class="toc-number">5.3.</span> <span class="toc-text">部署Tomcat测试应用</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#6%E3%80%81%E5%AE%9E%E6%88%98%EF%BC%9A%E6%B5%8B%E8%AF%95IngressHTTPS%E4%BB%A3%E7%90%86tomcat"><span class="toc-number">6.</span> <span class="toc-text">6、	实战：测试IngressHTTPS代理tomcat</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#%E5%88%A0%E9%99%A4%E6%9C%AC%E8%8A%82%E6%89%80%E5%88%9B%E5%BB%BA%E7%9A%84Pod"><span class="toc-number">6.1.</span> <span class="toc-text">删除本节所创建的Pod</span></a></li></ol></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/" title="基于Ingress实现k8s七层调度和负载均衡"><img src="/img/cover/15.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="基于Ingress实现k8s七层调度和负载均衡"/></a><div class="content"><a class="title" href="/2026/03/07/%E5%9F%BA%E4%BA%8EIngress%E5%AE%9E%E7%8E%B0k8s%E4%B8%83%E5%B1%82%E8%B0%83%E5%BA%A6%E5%92%8C%E8%B4%9F%E8%BD%BD%E5%9D%87%E8%A1%A1/" title="基于Ingress实现k8s七层调度和负载均衡">基于Ingress实现k8s七层调度和负载均衡</a><time datetime="2026-03-07T15:18:00.000Z" title="发表于 2026-03-07 23:18:00">2026-03-07</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/01/25/kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Statefulset%E8%AF%A6%E8%A7%A3%E5%92%8C%E7%AE%A1%E7%90%86%E6%9C%89%E7%8A%B6%E6%80%81%E7%9A%84%E5%BA%94%E7%94%A8/" title="kubernetes控制器-Statefulset详解和管理有状态的应用"><img src="/img/cover/14.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="kubernetes控制器-Statefulset详解和管理有状态的应用"/></a><div class="content"><a class="title" href="/2026/01/25/kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Statefulset%E8%AF%A6%E8%A7%A3%E5%92%8C%E7%AE%A1%E7%90%86%E6%9C%89%E7%8A%B6%E6%80%81%E7%9A%84%E5%BA%94%E7%94%A8/" title="kubernetes控制器-Statefulset详解和管理有状态的应用">kubernetes控制器-Statefulset详解和管理有状态的应用</a><time datetime="2026-01-25T14:56:00.000Z" title="发表于 2026-01-25 22:56:00">2026-01-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/01/25/k8s%E6%8C%81%E4%B9%85%E5%8C%96%E5%AD%98%E5%82%A8-%E5%B8%B8%E8%A7%81%E7%9A%84%E5%AD%98%E5%82%A8%E5%8D%B7%E4%BB%8B%E7%BB%8D/" title="k8s持久化存储-常见的存储卷介绍"><img src="/img/cover/10.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="k8s持久化存储-常见的存储卷介绍"/></a><div class="content"><a class="title" href="/2026/01/25/k8s%E6%8C%81%E4%B9%85%E5%8C%96%E5%AD%98%E5%82%A8-%E5%B8%B8%E8%A7%81%E7%9A%84%E5%AD%98%E5%82%A8%E5%8D%B7%E4%BB%8B%E7%BB%8D/" title="k8s持久化存储-常见的存储卷介绍">k8s持久化存储-常见的存储卷介绍</a><time datetime="2026-01-24T17:58:00.000Z" title="发表于 2026-01-25 01:58:00">2026-01-25</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/01/19/Kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Replicaset-Deployment/" title="Kubernetes控制器-Replicaset-Deployment"><img src="/img/cover/11.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Kubernetes控制器-Replicaset-Deployment"/></a><div class="content"><a class="title" href="/2026/01/19/Kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Replicaset-Deployment/" title="Kubernetes控制器-Replicaset-Deployment">Kubernetes控制器-Replicaset-Deployment</a><time datetime="2026-01-19T10:40:00.000Z" title="发表于 2026-01-19 18:40:00">2026-01-19</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/2026/01/19/Kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Daemonset-Job%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B/" title="Kubernetes控制器-Daemonset-Job企业级实战案例"><img src="/img/cover/15.png" onerror="this.onerror=null;this.src='/img/404.jpg'" alt="Kubernetes控制器-Daemonset-Job企业级实战案例"/></a><div class="content"><a class="title" href="/2026/01/19/Kubernetes%E6%8E%A7%E5%88%B6%E5%99%A8-Daemonset-Job%E4%BC%81%E4%B8%9A%E7%BA%A7%E5%AE%9E%E6%88%98%E6%A1%88%E4%BE%8B/" title="Kubernetes控制器-Daemonset-Job企业级实战案例">Kubernetes控制器-Daemonset-Job企业级实战案例</a><time datetime="2026-01-19T10:35:00.000Z" title="发表于 2026-01-19 18:35:00">2026-01-19</time></div></div></div></div></div></div></main><footer id="footer" style="background-image: url(/img/cover/15.png);"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2025 - 2026 By Geeeemi</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.1</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.5.3</a></span></div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="translateLink" type="button" title="简繁转换">繁</button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/js/utils.js?v=5.5.3"></script><script src="/js/main.js?v=5.5.3"></script><script src="/js/tw_cn.js?v=5.5.3"></script><div class="js-pjax"></div><script defer="defer" id="ribbon" src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/dist/canvas-ribbon.min.js" size="150" alpha="0.6" zIndex="-1" mobile="false" data-click="false"></script><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/aplayer@1.10.1/dist/APlayer.min.js"></script><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/metingjs/dist/Meting.min.js"></script><script async data-pjax src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script></div></body></html>
